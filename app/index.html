@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Family Calendar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    .animate-pulse {
+      animation: pulse 2s infinite;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const API_BASE = 'http://localhost:3000/api';
+    const AUTO_REFRESH_MINUTES = 2;
+    const SETTINGS_TAP_COUNT = 1; // Tap title 5 times to open settings
+
+    const quotes = [
+      { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+      { text: "Family is not an important thing. It's everything.", author: "Michael J. Fox" },
+      { text: "Together is a wonderful place to be.", author: "Unknown" },
+      { text: "The love of family is life's greatest blessing.", author: "Unknown" },
+      { text: "Every day is a fresh start.", author: "Unknown" },
+      { text: "Happiness is homemade.", author: "Unknown" },
+      { text: "Make today amazing.", author: "Unknown" },
+      { text: "Be the reason someone smiles today.", author: "Unknown" },
+    ];
+
+    const colorLabels = {
+      '#ff6b9d': { name: 'Personal', icon: '💗', googleColor: '4' },
+      '#7c3aed': { name: 'Work', icon: '💼', googleColor: '1' },
+      '#059669': { name: 'Health', icon: '🏃', googleColor: '10' },
+      '#d97706': { name: 'Family', icon: '👨‍👩‍👧‍👦', googleColor: '6' },
+      '#2563eb': { name: 'School', icon: '📚', googleColor: '9' },
+      '#dc2626': { name: 'URGENT', icon: '🚨', googleColor: '11' },
+    };
+
+    const googleColorMap = { '1': '#7c3aed', '4': '#ff6b9d', '6': '#d97706', '9': '#2563eb', '10': '#059669', '11': '#dc2626' };
+    const defaultColor = '#ff6b9d';
+
+    const OnScreenKeyboard = ({ onKeyPress, onClose, onBackspace, onEnter }) => {
+      const [shift, setShift] = useState(false);
+      const [symbols, setSymbols] = useState(false);
+
+      const letterRows = [
+        ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+        ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+        ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+        ['z', 'x', 'c', 'v', 'b', 'n', 'm']
+      ];
+
+      const symbolRows = [
+        ['!', '@', '#', '$', '%', '^', '&', '*', '(', ')'],
+        ['-', '_', '=', '+', '[', ']', '{', '}', '|', '\\'],
+        [';', ':', '"', "'", '<', '>', ',', '.', '/'],
+        ['~', '`', '?', '!']
+      ];
+
+      const rows = symbols ? symbolRows : letterRows;
+
+      return (
+        <div className="fixed bottom-0 left-0 right-0 bg-gray-800 p-2 pb-4 z-50">
+          <div className="flex justify-center gap-2 mb-2">
+            <button onClick={() => setSymbols(!symbols)} className={`px-4 py-2 rounded-lg text-white ${symbols ? 'bg-pink-500' : 'bg-gray-600'}`}>
+              {symbols ? 'ABC' : '!@#'}
+            </button>
+            <button onClick={onClose} className="px-6 py-2 bg-gray-600 text-white rounded-lg">Close</button>
+          </div>
+          {rows.map((row, i) => (
+            <div key={i} className="flex justify-center gap-1 mb-1">
+              {i === 3 && !symbols && (
+                <button onClick={() => setShift(!shift)} className={`px-4 py-4 rounded-lg text-white text-lg min-w-16 ${shift ? 'bg-pink-500' : 'bg-gray-600'}`}>⇧</button>
+              )}
+              {row.map(key => (
+                <button key={key} onClick={() => { onKeyPress(shift && !symbols ? key.toUpperCase() : key); setShift(false); }} className="px-4 py-4 bg-gray-600 active:bg-pink-500 text-white rounded-lg text-lg min-w-12">
+                  {shift && !symbols ? key.toUpperCase() : key}
+                </button>
+              ))}
+              {i === 3 && <button onClick={onBackspace} className="px-4 py-4 bg-gray-600 active:bg-red-500 text-white rounded-lg text-lg min-w-16">⌫</button>}
+            </div>
+          ))}
+          <div className="flex justify-center gap-1">
+            <button onClick={() => onKeyPress(' ')} className="px-32 py-4 bg-gray-600 active:bg-pink-500 text-white rounded-lg">Space</button>
+            <button onClick={onEnter} className="px-8 py-4 bg-pink-500 text-white rounded-lg">Done</button>
+          </div>
+        </div>
+      );
+    };
+
+    const TimeKeyboard = ({ value, onChange, onClose }) => {
+      const [hours, setHours] = useState(value?.split(':')[0] || '09');
+      const [minutes, setMinutes] = useState(value?.split(':')[1] || '00');
+      const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+      const minOptions = ['00', '15', '30', '45'];
+      return (
+        <div className="fixed bottom-0 left-0 right-0 bg-gray-800 p-4 z-50">
+          <div className="flex justify-center gap-8 mb-4">
+            <div className="text-center">
+              <p className="text-white mb-2">Hour</p>
+              <div className="grid grid-cols-6 gap-1">
+                {hourOptions.map(h => <button key={h} onClick={() => setHours(h)} className={`px-3 py-3 rounded-lg text-white ${hours === h ? 'bg-pink-500' : 'bg-gray-600'}`}>{h}</button>)}
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-white mb-2">Minute</p>
+              <div className="grid grid-cols-2 gap-1">
+                {minOptions.map(m => <button key={m} onClick={() => setMinutes(m)} className={`px-4 py-3 rounded-lg text-white ${minutes === m ? 'bg-pink-500' : 'bg-gray-600'}`}>{m}</button>)}
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-center gap-2">
+            <button onClick={onClose} className="px-8 py-3 bg-gray-600 text-white rounded-lg">Cancel</button>
+            <button onClick={() => { onChange(`${hours}:${minutes}`); onClose(); }} className="px-8 py-3 bg-pink-500 text-white rounded-lg">Set Time</button>
+          </div>
+        </div>
+      );
+    };
+
+    function FamilyCalendar() {
+      const [currentDate, setCurrentDate] = useState(new Date());
+      const [events, setEvents] = useState({});
+      const [showModal, setShowModal] = useState(false);
+      const [selectedDay, setSelectedDay] = useState(null);
+      const [newEvent, setNewEvent] = useState({ title: '', time: '09:00', color: '#ff6b9d' });
+      const [currentTime, setCurrentTime] = useState(new Date());
+      const [showKeyboard, setShowKeyboard] = useState(false);
+      const [showTimeKeyboard, setShowTimeKeyboard] = useState(false);
+      const [dailyQuote, setDailyQuote] = useState(quotes[0]);
+      const [isLoading, setIsLoading] = useState(false);
+      const [syncStatus, setSyncStatus] = useState('Connecting...');
+      const [isConnected, setIsConnected] = useState(false);
+      const colors = ['#ff6b9d', '#7c3aed', '#059669', '#d97706', '#2563eb', '#dc2626'];
+      const [showSettings, setShowSettings] = useState(false);
+      const [titleTaps, setTitleTaps] = useState(0);
+      const [wifiSSID, setWifiSSID] = useState('');
+      const [wifiPassword, setWifiPassword] = useState('');
+      const [wifiStatus, setWifiStatus] = useState('');
+      const [activeWifiField, setActiveWifiField] = useState(null);
+      const [showWifiKeyboard, setShowWifiKeyboard] = useState(false);
+
+      useEffect(() => {
+        const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+        setDailyQuote(quotes[dayOfYear % quotes.length]);
+
+        // Check connection and fetch events
+        checkConnection();
+
+        // Update clock every minute
+        const clockTimer = setInterval(() => setCurrentTime(new Date()), 60000);
+
+        // Auto-refresh events every X minutes
+        const refreshTimer = setInterval(fetchEvents, AUTO_REFRESH_MINUTES * 60 * 1000);
+
+        return () => {
+          clearInterval(clockTimer);
+          clearInterval(refreshTimer);
+        };
+      }, []);
+
+      useEffect(() => {
+        if (isConnected) fetchEvents();
+      }, [currentDate, isConnected]);
+
+      const checkConnection = async () => {
+        try {
+          const res = await fetch(`${API_BASE}/health`);
+          const data = await res.json();
+          if (data.status === 'connected') {
+            setIsConnected(true);
+            setSyncStatus('Connected to Google Calendar');
+            fetchEvents();
+          } else {
+            setSyncStatus('Connection error');
+          }
+        } catch (err) {
+          setSyncStatus('Server not running - start with: npm start');
+          setIsConnected(false);
+        }
+      };
+
+      const getWeekDates = () => {
+        const start = new Date(currentDate);
+        const day = start.getDay();
+        start.setDate(start.getDate() - day + (day === 0 ? -6 : 1));
+        return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+      };
+
+      const weekDates = getWeekDates();
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const formatDateKey = (date) => date.toISOString().split('T')[0];
+      const isToday = (date) => date.toDateString() === new Date().toDateString();
+      const navigateWeek = (dir) => { const d = new Date(currentDate); d.setDate(d.getDate() + dir * 7); setCurrentDate(d); };
+
+      const fetchEvents = async () => {
+        setIsLoading(true);
+        try {
+          const startOfWeek = new Date(weekDates[0]);
+          startOfWeek.setHours(0, 0, 0, 0);
+          const endOfWeek = new Date(weekDates[6]);
+          endOfWeek.setHours(23, 59, 59, 999);
+
+          const res = await fetch(`${API_BASE}/events?timeMin=${startOfWeek.toISOString()}&timeMax=${endOfWeek.toISOString()}`);
+          const googleEvents = await res.json();
+
+          const eventsByDate = {};
+          googleEvents.forEach(event => {
+            const startDate = event.start.dateTime || event.start.date;
+            const dateKey = startDate.split('T')[0];
+            const time = event.start.dateTime ? new Date(event.start.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : 'All day';
+            const color = googleColorMap[event.colorId] || defaultColor;
+
+            if (!eventsByDate[dateKey]) eventsByDate[dateKey] = [];
+            eventsByDate[dateKey].push({
+              id: event.id,
+              title: event.summary || 'No title',
+              time: time,
+              color: color,
+              googleId: event.id,
+            });
+          });
+
+          setEvents(eventsByDate);
+          setSyncStatus(`Synced ${googleEvents.length} events • Auto-refresh every ${AUTO_REFRESH_MINUTES}min`);
+        } catch (error) {
+          console.error('Error fetching events:', error);
+          setSyncStatus('Error fetching events');
+        }
+        setIsLoading(false);
+      };
+
+      const addEvent = async () => {
+        if (!newEvent.title.trim()) return;
+        setIsLoading(true);
+
+        try {
+          const [hours, minutes] = newEvent.time.split(':');
+          const startDateTime = new Date(selectedDay);
+          startDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          const endDateTime = new Date(startDateTime);
+          endDateTime.setHours(endDateTime.getHours() + 1);
+
+          const res = await fetch(`${API_BASE}/events`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              summary: newEvent.title,
+              startDateTime: startDateTime.toISOString(),
+              endDateTime: endDateTime.toISOString(),
+              colorId: colorLabels[newEvent.color]?.googleColor || '4',
+            }),
+          });
+
+          if (res.ok) {
+            setSyncStatus('Event added! ✓');
+            fetchEvents();
+          }
+        } catch (error) {
+          console.error('Error adding event:', error);
+          setSyncStatus('Error adding event');
+        }
+
+        setShowModal(false);
+        setShowKeyboard(false);
+        setIsLoading(false);
+      };
+
+      const deleteEvent = async (dateKey, eventId, googleId) => {
+        try {
+          await fetch(`${API_BASE}/events/${googleId}`, { method: 'DELETE' });
+          setSyncStatus('Event deleted! ✓');
+          fetchEvents();
+        } catch (error) {
+          console.error('Error deleting event:', error);
+        }
+      };
+
+      const getUrgentEvents = () => {
+        const urgent = [];
+        weekDates.forEach(date => {
+          const key = formatDateKey(date);
+          const dayEvents = events[key] || [];
+          dayEvents.filter(e => e.color === '#dc2626').forEach(e => {
+            urgent.push({ ...e, date, dateKey: key, dayName: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) });
+          });
+        });
+        return urgent.sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey));
+      };
+
+      const urgentEvents = getUrgentEvents();
+      const handleDayClick = (date) => { setSelectedDay(date); setNewEvent({ title: '', time: '09:00', color: '#ff6b9d' }); setShowModal(true); };
+      const toggleFullscreen = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); };
+      const monthYear = weekDates[3].toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/New_York' });
+      const handleTitleTap = () => {
+        const newTaps = titleTaps + 1;
+        setTitleTaps(newTaps);
+        if (newTaps >= SETTINGS_TAP_COUNT) {
+          setShowSettings(true);
+          setTitleTaps(0);
+        }
+        setTimeout(() => setTitleTaps(0), 2000);
+      };
+
+      const saveWifi = async () => {
+        setWifiStatus('Saving...');
+        try {
+          const res = await fetch(`${API_BASE}/wifi`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ssid: wifiSSID, password: wifiPassword }),
+          });
+          if (res.ok) {
+            setWifiStatus('Saved! ✓');
+          } else {
+            setWifiStatus('Error saving');
+          }
+        } catch (e) {
+          setWifiStatus('Error: ' + e.message);
+        }
+      };
+
+      const connectWifi = async () => {
+        setWifiStatus('Connecting...');
+        try {
+          const res = await fetch(`${API_BASE}/wifi/connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ssid: wifiSSID, password: wifiPassword }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setWifiStatus('Connected! ✓');
+          } else {
+            setWifiStatus('Error: ' + data.error);
+          }
+        } catch (e) {
+          setWifiStatus('Error: ' + e.message);
+        }
+      };
+
+      const handleWifiKeyPress = (key) => {
+        if (activeWifiField === 'ssid') {
+          setWifiSSID(wifiSSID + key);
+        } else if (activeWifiField === 'password') {
+          setWifiPassword(wifiPassword + key);
+        }
+      };
+
+      const handleWifiBackspace = () => {
+        if (activeWifiField === 'ssid') {
+          setWifiSSID(wifiSSID.slice(0, -1));
+        } else if (activeWifiField === 'password') {
+          setWifiPassword(wifiPassword.slice(0, -1));
+        }
+      };
+
+
+      return (
+        <div className="min-h-screen p-3 pb-4" style={{ backgroundColor: '#fdf2f4' }}>
+          <div className="text-center mb-2">
+            <h1 onClick={() => handleTitleTap()} className="text-3xl font-serif italic text-gray-800 mb-1 cursor-pointer">Family Calendar</h1>
+            <p className="text-base text-gray-600">{monthYear}</p>
+            <p className="text-sm text-gray-500">{currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+
+            <div className="mt-2 flex justify-center items-center gap-2">
+              {isConnected ? (
+                <span className="text-xs text-green-600 bg-green-100 px-3 py-1 rounded-full">✓ {syncStatus}</span>
+              ) : (
+                <span className="text-xs text-orange-600 bg-orange-100 px-3 py-1 rounded-full">⚠️ {syncStatus}</span>
+              )}
+              <button onClick={fetchEvents} disabled={!isConnected} className="text-xs bg-blue-500 text-white px-3 py-1 rounded-full active:scale-95 disabled:opacity-50">🔄 Sync</button>
+            </div>
+          </div>
+
+          <div className="flex justify-center gap-2 mb-2">
+            <button onClick={() => navigateWeek(-1)} className="px-4 py-2 bg-gray-800 text-white rounded-lg active:scale-95">← Prev</button>
+            <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 bg-pink-500 text-white rounded-lg active:scale-95">Today</button>
+            <button onClick={() => navigateWeek(1)} className="px-4 py-2 bg-gray-800 text-white rounded-lg active:scale-95">Next →</button>
+            {/*<button onClick={toggleFullscreen} className="px-3 py-2 bg-gray-600 text-white rounded-lg active:scale-95">⛶</button>*/}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day, i) => (
+              <div key={day} className={`py-1.5 text-center font-bold text-white text-sm ${i >= 5 ? 'bg-pink-400' : 'bg-gray-800'} rounded-t-lg`}>
+                {day}<div className="text-xs font-normal opacity-80">{weekDates[i].getDate()}</div>
+              </div>
+            ))}
+            {weekDates.map((date, i) => {
+              const dateKey = formatDateKey(date);
+              const dayEvents = events[dateKey] || [];
+              const today = isToday(date);
+              return (
+                <div key={i} onClick={() => handleDayClick(date)} className={`min-h-32 bg-white rounded-b-lg p-1 cursor-pointer active:scale-[0.98] ${today ? 'ring-3 ring-pink-400' : ''}`}>
+                  {today && <div className="text-xs text-pink-500 font-bold text-center">TODAY</div>}
+                  <div className="space-y-0.5">
+                    {dayEvents.slice(0, 10).map((event) => (
+                      <div key={event.id} className="p-1 rounded text-white text-xs flex justify-between items-center" style={{ backgroundColor: event.color }} onClick={(e) => e.stopPropagation()}>
+                        <div className="truncate flex-1"><span className="font-medium">{event.title}</span> <span className="opacity-80">{event.time}</span></div>
+                        <button onClick={(e) => { e.stopPropagation(); deleteEvent(dateKey, event.id, event.googleId); }} className="text-white text-sm px-1 ml-1">×</button>
+                      </div>
+                    ))}
+                    {dayEvents.length > 10 && <div className="text-xs text-gray-500 text-center">+{dayEvents.length - 10} more</div>}
+                  </div>
+                  <div className="text-center text-gray-300 text-lg">+</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-pink-400">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">✨</span>
+                <h3 className="font-bold text-gray-800">Quote of the Day</h3>
+              </div>
+              <p className="text-gray-700 italic text-lg">"{dailyQuote.text}"</p>
+              <p className="text-gray-500 text-sm mt-1">— {dailyQuote.author}</p>
+            </div>
+
+            <div className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-red-500">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">🚨</span>
+                <h3 className="font-bold text-gray-800">Urgent This Week</h3>
+              </div>
+              {urgentEvents.length === 0 ? (
+                <p className="text-gray-500 italic">No urgent items - great job! 🎉</p>
+              ) : (
+                <div className="space-y-2 max-h-24 overflow-y-auto">
+                  {urgentEvents.map((event, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-2 bg-red-50 rounded-lg border border-red-200">
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                      <div className="flex-1">
+                        <span className="font-medium text-red-800">{event.title}</span>
+                        <span className="text-red-600 text-sm ml-2">{event.dayName} @ {event.time}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 flex justify-center flex-wrap gap-3">
+            {colors.map(color => (
+              <div key={color} className="flex items-center gap-1 text-sm text-gray-600">
+                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }}></div>
+                <span>{colorLabels[color].icon} {colorLabels[color].name}</span>
+              </div>
+            ))}
+          </div>
+          {isLoading && (
+            <div className="flex justify-center mb-2">
+              <div className="bg-blue-100 text-blue-800 px-4 py-1 rounded-full text-sm animate-pulse">Syncing...</div>
+            </div>
+          )}
+
+          {showModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center pt-4 p-4 z-40" onClick={() => { setShowModal(false); setShowKeyboard(false); setShowTimeKeyboard(false); }}>
+              <div className="bg-white rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
+                <h2 className="text-xl font-bold mb-3 text-gray-800">Add Event - {selectedDay?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</h2>
+                <div onClick={() => { setShowKeyboard(true); setShowTimeKeyboard(false); }} className="w-full p-3 text-lg border-2 border-gray-200 rounded-xl mb-3 cursor-text min-h-14 flex items-center">
+                  {newEvent.title || <span className="text-gray-400">Tap to enter event title...</span>}
+                </div>
+                <div onClick={() => { setShowTimeKeyboard(true); setShowKeyboard(false); }} className="w-full p-3 text-lg border-2 border-gray-200 rounded-xl mb-3 cursor-pointer">🕐 {newEvent.time}</div>
+                <div className="mb-3">
+                  <p className="text-sm text-gray-500 mb-2 text-center">Select Category:</p>
+                  <div className="flex gap-2 justify-center flex-wrap">
+                    {colors.map(color => (
+                      <button key={color} onClick={() => setNewEvent({ ...newEvent, color })} className={`flex flex-col items-center p-2 rounded-lg transition-all ${newEvent.color === color ? 'scale-110 ring-2 ring-gray-400 bg-gray-100' : ''}`}>
+                        <div className="w-8 h-8 rounded-full mb-1" style={{ backgroundColor: color }}></div>
+                        <span className="text-xs text-gray-600">{colorLabels[color].name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowModal(false); setShowKeyboard(false); setShowTimeKeyboard(false); }} className="flex-1 py-3 bg-gray-200 text-gray-800 rounded-xl text-lg active:scale-95">Cancel</button>
+                  <button onClick={addEvent} disabled={isLoading || !isConnected} className="flex-1 py-3 bg-pink-500 text-white rounded-xl text-lg active:scale-95 disabled:opacity-50">{isLoading ? 'Saving...' : 'Add'}</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {showKeyboard && <OnScreenKeyboard onKeyPress={(key) => setNewEvent({ ...newEvent, title: newEvent.title + key })} onBackspace={() => setNewEvent({ ...newEvent, title: newEvent.title.slice(0, -1) })} onEnter={() => setShowKeyboard(false)} onClose={() => setShowKeyboard(false)} />}
+          {showTimeKeyboard && <TimeKeyboard value={newEvent.time} onChange={(time) => setNewEvent({ ...newEvent, time })} onClose={() => setShowTimeKeyboard(false)} />}
+          {showSettings && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40" onClick={() => { setShowSettings(false); setShowWifiKeyboard(false); }}>
+              <div className="bg-white rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
+                <h2 className="text-xl font-bold mb-4 text-gray-800">⚙️ Settings</h2>
+
+                <div className="mb-4">
+                  <label className="block text-sm text-gray-600 mb-1">WiFi Network (SSID)</label>
+                  <div
+                    onClick={() => { setActiveWifiField('ssid'); setShowWifiKeyboard(true); }}
+                    className="w-full p-3 text-lg border-2 border-gray-200 rounded-xl cursor-text min-h-12 flex items-center"
+                  >
+                    {wifiSSID || <span className="text-gray-400">Tap to enter SSID...</span>}
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm text-gray-600 mb-1">WiFi Password</label>
+                  <div
+                    onClick={() => { setActiveWifiField('password'); setShowWifiKeyboard(true); }}
+                    className="w-full p-3 text-lg border-2 border-gray-200 rounded-xl cursor-text min-h-12 flex items-center"
+                  >
+                    {wifiPassword ? '•'.repeat(wifiPassword.length) : <span className="text-gray-400">Tap to enter password...</span>}
+                  </div>
+                </div>
+
+                {wifiStatus && <p className="text-center text-sm mb-3 text-gray-600">{wifiStatus}</p>}
+
+                <div className="flex gap-2 mb-3">
+                  <button onClick={saveWifi} className="flex-1 py-3 bg-blue-500 text-white rounded-xl active:scale-95">Save</button>
+                  <button onClick={connectWifi} className="flex-1 py-3 bg-green-500 text-white rounded-xl active:scale-95">Connect</button>
+                </div>
+
+                <button onClick={() => { setShowSettings(false); setShowWifiKeyboard(false); }} className="w-full py-3 bg-gray-200 text-gray-800 rounded-xl active:scale-95">Close</button>
+              </div>
+            </div>
+          )}
+
+          {showWifiKeyboard && (
+            <OnScreenKeyboard
+              onKeyPress={handleWifiKeyPress}
+              onBackspace={handleWifiBackspace}
+              onEnter={() => setShowWifiKeyboard(false)}
+              onClose={() => setShowWifiKeyboard(false)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<FamilyCalendar />);
+  </script>
+</body>
+
+</html>
