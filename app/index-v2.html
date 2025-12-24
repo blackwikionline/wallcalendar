@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Family Calendar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <style>
+    *{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+    body{margin:0;overflow-x:hidden;user-select:none;-webkit-user-select:none}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .animate-pulse{animation:pulse 2s infinite}
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div style="background:#fdf2f4;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column">
+      <h1 style="font-family:Georgia,serif;font-style:italic;color:#333;font-size:2.5rem;margin:0">Family Calendar</h1>
+      <p style="color:#666;margin-top:1rem">Loading...</p>
+      <div style="margin-top:1rem;width:40px;height:40px;border:4px solid #ff6b9d;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite"></div>
+    </div>
+  </div>
+  <script>
+    const e=React.createElement,{useState:S,useEffect:E}=React;
+    const API_BASE='/api',AUTO_REFRESH=5;
+    const quotes=[
+      {text:"The secret of getting ahead is getting started.",author:"Mark Twain"},
+      {text:"Family is not an important thing. It's everything.",author:"Michael J. Fox"},
+      {text:"Together is a wonderful place to be.",author:"Unknown"},
+      {text:"The love of family is life's greatest blessing.",author:"Unknown"},
+      {text:"Every day is a fresh start.",author:"Unknown"},
+      {text:"Happiness is homemade.",author:"Unknown"},
+      {text:"Make today amazing.",author:"Unknown"}
+    ];
+    const colorLabels={
+      '#ff6b9d':{name:'Personal',icon:'💗',gc:'4'},
+      '#7c3aed':{name:'Work',icon:'💼',gc:'1'},
+      '#059669':{name:'Health',icon:'🏃',gc:'10'},
+      '#d97706':{name:'Family',icon:'👨‍👩‍👧‍👦',gc:'6'},
+      '#2563eb':{name:'School',icon:'📚',gc:'9'},
+      '#dc2626':{name:'URGENT',icon:'🚨',gc:'11'}
+    };
+    const gcMap={'1':'#7c3aed','4':'#ff6b9d','6':'#d97706','9':'#2563eb','10':'#059669','11':'#dc2626'};
+    const colors=['#ff6b9d','#7c3aed','#059669','#d97706','#2563eb','#dc2626'];
+    const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+
+    function Keyboard({onKey,onClose,onBack,onEnter}){
+      const[shift,setShift]=S(false),[sym,setSym]=S(false);
+      const letters=[['1','2','3','4','5','6','7','8','9','0'],['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['z','x','c','v','b','n','m']];
+      const symbols=[['!','@','#','$','%','^','&','*','(',')'],['−','_','=','+','[',']','{','}','|','\\'],['；',':','"',"'",'<','>',',','.','/'],['~','`','?','!']];
+      const rows=sym?symbols:letters;
+      return e('div',{className:'fixed bottom-0 left-0 right-0 bg-gray-800 p-2 pb-4 z-50'},
+        e('div',{className:'flex justify-center gap-2 mb-2'},
+          e('button',{onClick:()=>setSym(!sym),className:`px-4 py-2 rounded-lg text-white ${sym?'bg-pink-500':'bg-gray-600'}`},sym?'ABC':'!@#'),
+          e('button',{onClick:onClose,className:'px-6 py-2 bg-gray-600 text-white rounded-lg'},'Close')
+        ),
+        rows.map((row,i)=>e('div',{key:i,className:'flex justify-center gap-1 mb-1'},
+          i===3&&!sym&&e('button',{onClick:()=>setShift(!shift),className:`px-4 py-4 rounded-lg text-white text-lg min-w-16 ${shift?'bg-pink-500':'bg-gray-600'}`},'⇧'),
+          row.map(k=>e('button',{key:k,onClick:()=>{onKey(shift&&!sym?k.toUpperCase():k);setShift(false)},className:'px-4 py-4 bg-gray-600 active:bg-pink-500 text-white rounded-lg text-lg min-w-12'},shift&&!sym?k.toUpperCase():k)),
+          i===3&&e('button',{onClick:onBack,className:'px-4 py-4 bg-gray-600 active:bg-red-500 text-white rounded-lg text-lg min-w-16'},'⌫')
+        )),
+        e('div',{className:'flex justify-center gap-1'},
+          e('button',{onClick:()=>onKey(' '),className:'px-32 py-4 bg-gray-600 active:bg-pink-500 text-white rounded-lg'},'Space'),
+          e('button',{onClick:onEnter,className:'px-8 py-4 bg-pink-500 text-white rounded-lg'},'Done')
+        )
+      );
+    }
+
+    function TimePicker({value,onChange,onClose}){
+      const[h,setH]=S(value?.split(':')[0]||'09'),[m,setM]=S(value?.split(':')[1]||'00');
+      const hrs=Array.from({length:24},(_,i)=>i.toString().padStart(2,'0'));
+      const mins=['00','15','30','45'];
+      return e('div',{className:'fixed bottom-0 left-0 right-0 bg-gray-800 p-4 z-50'},
+        e('div',{className:'flex justify-center gap-8 mb-4'},
+          e('div',{className:'text-center'},e('p',{className:'text-white mb-2'},'Hour'),
+            e('div',{className:'grid grid-cols-6 gap-1'},hrs.map(x=>e('button',{key:x,onClick:()=>setH(x),className:`px-3 py-3 rounded-lg text-white ${h===x?'bg-pink-500':'bg-gray-600'}`},x)))
+          ),
+          e('div',{className:'text-center'},e('p',{className:'text-white mb-2'},'Minute'),
+            e('div',{className:'grid grid-cols-2 gap-1'},mins.map(x=>e('button',{key:x,onClick:()=>setM(x),className:`px-4 py-3 rounded-lg text-white ${m===x?'bg-pink-500':'bg-gray-600'}`},x)))
+          )
+        ),
+        e('div',{className:'flex justify-center gap-2'},
+          e('button',{onClick:onClose,className:'px-8 py-3 bg-gray-600 text-white rounded-lg'},'Cancel'),
+          e('button',{onClick:()=>{onChange(`${h}:${m}`);onClose()},className:'px-8 py-3 bg-pink-500 text-white rounded-lg'},'Set Time')
+        )
+      );
+    }
+
+    function App(){
+      const[date,setDate]=S(new Date()),[events,setEvents]=S({}),[modal,setModal]=S(false),[selDay,setSelDay]=S(null);
+      const[newEv,setNewEv]=S({title:'',time:'09:00',color:'#ff6b9d'}),[time,setTime]=S(new Date());
+      const[kb,setKb]=S(false),[timePick,setTimePick]=S(false),[quote,setQuote]=S(quotes[0]);
+      const[loading,setLoading]=S(false),[status,setStatus]=S('Connecting...'),[connected,setConnected]=S(false);
+      const[settings,setSettings]=S(false),[taps,setTaps]=S(0),[ssid,setSsid]=S(''),[wifiPw,setWifiPw]=S('');
+      const[wifiStatus,setWifiStatus]=S(''),[wifiField,setWifiField]=S(null),[wifiKb,setWifiKb]=S(false);
+
+      E(()=>{
+        const d=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/864e5);
+        setQuote(quotes[d%quotes.length]);
+        checkConn();
+        const t1=setInterval(()=>setTime(new Date()),6e4);
+        const t2=setInterval(fetchEv,AUTO_REFRESH*6e4);
+        return()=>{clearInterval(t1);clearInterval(t2)};
+      },[]);
+
+      E(()=>{if(connected)fetchEv()},[date,connected]);
+
+      const checkConn=async()=>{
+        try{const r=await fetch(`${API_BASE}/health`);const d=await r.json();
+          if(d.status==='connected'){setConnected(true);setStatus('Connected');fetchEv()}
+          else setStatus('Error')
+        }catch(e){setStatus('Server not running');setConnected(false)}
+      };
+
+      const getWeek=()=>{const s=new Date(date);const d=s.getDay();s.setDate(s.getDate()-d+(d===0?-6:1));
+        return Array.from({length:7},(_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return x})};
+      const week=getWeek();
+      const fmtKey=d=>d.toISOString().split('T')[0];
+      const isToday=d=>d.toDateString()===new Date().toDateString();
+      const navWeek=n=>{const d=new Date(date);d.setDate(d.getDate()+n*7);setDate(d)};
+
+      const fetchEv=async()=>{
+        setLoading(true);
+        try{
+          const s=new Date(week[0]);s.setHours(0,0,0,0);
+          const en=new Date(week[6]);en.setHours(23,59,59,999);
+          const r=await fetch(`${API_BASE}/events?timeMin=${s.toISOString()}&timeMax=${en.toISOString()}`);
+          const evs=await r.json();const byDate={};
+          evs.forEach(ev=>{
+            const sd=ev.start.dateTime||ev.start.date;const dk=sd.split('T')[0];
+            const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}):'All day';
+            const c=gcMap[ev.colorId]||'#ff6b9d';
+            if(!byDate[dk])byDate[dk]=[];
+            byDate[dk].push({id:ev.id,title:ev.summary||'No title',time:t,color:c,googleId:ev.id});
+          });
+          setEvents(byDate);setStatus(`Synced ${evs.length} events`);
+        }catch(e){setStatus('Fetch error')}
+        setLoading(false);
+      };
+
+      const addEv=async()=>{
+        if(!newEv.title.trim())return;setLoading(true);
+        try{
+          const[h,m]=newEv.time.split(':');const st=new Date(selDay);st.setHours(+h,+m,0,0);
+          const en=new Date(st);en.setHours(en.getHours()+1);
+          await fetch(`${API_BASE}/events`,{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({summary:newEv.title,startDateTime:st.toISOString(),endDateTime:en.toISOString(),colorId:colorLabels[newEv.color]?.gc||'4'})});
+          setStatus('Added!');fetchEv();
+        }catch(e){setStatus('Add error')}
+        setModal(false);setKb(false);setLoading(false);
+      };
+
+      const delEv=async(dk,id,gid)=>{
+        try{await fetch(`${API_BASE}/events/${gid}`,{method:'DELETE'});setStatus('Deleted!');fetchEv()}catch(e){}
+      };
+
+      const getUrgent=()=>{const u=[];week.forEach(d=>{const k=fmtKey(d);(events[k]||[]).filter(x=>x.color==='#dc2626').forEach(x=>u.push({...x,dayName:d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}))});return u};
+      const urgent=getUrgent();
+
+      const handleTap=()=>{const n=taps+1;setTaps(n);if(n>=5){setSettings(true);setTaps(0)}setTimeout(()=>setTaps(0),2e3)};
+      const toggleFs=()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();else document.exitFullscreen?.()};
+      const saveWifi=async()=>{setWifiStatus('Saving...');try{await fetch(`${API_BASE}/wifi`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ssid,password:wifiPw})});setWifiStatus('Saved!')}catch(e){setWifiStatus('Error')}};
+      const connectWifi=async()=>{setWifiStatus('Connecting...');try{const r=await fetch(`${API_BASE}/wifi/connect`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ssid,password:wifiPw})});const d=await r.json();setWifiStatus(r.ok?'Connected!':'Error: '+d.error)}catch(e){setWifiStatus('Error')}};
+      const wifiKey=k=>{if(wifiField==='ssid')setSsid(ssid+k);else if(wifiField==='password')setWifiPw(wifiPw+k)};
+      const wifiBack=()=>{if(wifiField==='ssid')setSsid(ssid.slice(0,-1));else if(wifiField==='password')setWifiPw(wifiPw.slice(0,-1))};
+
+      const monthYear=week[3].toLocaleDateString('en-US',{month:'long',year:'numeric'});
+
+      return e('div',{className:'min-h-screen p-3 pb-4',style:{backgroundColor:'#fdf2f4'}},
+        e('div',{className:'text-center mb-2'},
+          e('h1',{onClick:handleTap,className:'text-3xl font-serif italic text-gray-800 mb-1 cursor-pointer'},'Family Calendar'),
+          e('p',{className:'text-base text-gray-600'},monthYear),
+          e('p',{className:'text-sm text-gray-500'},time.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})),
+          e('div',{className:'mt-2 flex justify-center items-center gap-2'},
+            e('span',{className:`text-xs px-3 py-1 rounded-full ${connected?'text-green-600 bg-green-100':'text-orange-600 bg-orange-100'}`},(connected?'✓ ':' ⚠️ ')+status),
+            e('button',{onClick:fetchEv,disabled:!connected,className:'text-xs bg-blue-500 text-white px-3 py-1 rounded-full active:scale-95 disabled:opacity-50'},'🔄 Sync')
+          )
+        ),
+        e('div',{className:'flex justify-center gap-2 mb-2'},
+          e('button',{onClick:()=>navWeek(-1),className:'px-4 py-2 bg-gray-800 text-white rounded-lg active:scale-95'},'← Prev'),
+          e('button',{onClick:()=>setDate(new Date()),className:'px-4 py-2 bg-pink-500 text-white rounded-lg active:scale-95'},'Today'),
+          e('button',{onClick:()=>navWeek(1),className:'px-4 py-2 bg-gray-800 text-white rounded-lg active:scale-95'},'Next →'),
+          e('button',{onClick:toggleFs,className:'px-3 py-2 bg-gray-600 text-white rounded-lg active:scale-95'},'⛶')
+        ),
+        loading&&e('div',{className:'flex justify-center mb-2'},e('div',{className:'bg-blue-100 text-blue-800 px-4 py-1 rounded-full text-sm animate-pulse'},'Syncing...')),
+        e('div',{className:'grid grid-cols-7 gap-1'},
+          days.map((d,i)=>e('div',{key:d,className:`py-1.5 text-center font-bold text-white text-sm ${i>=5?'bg-pink-400':'bg-gray-800'} rounded-t-lg`},d,e('div',{className:'text-xs font-normal opacity-80'},week[i].getDate()))),
+          week.map((d,i)=>{const dk=fmtKey(d);const evs=events[dk]||[];const today=isToday(d);
+            return e('div',{key:i,onClick:()=>{setSelDay(d);setNewEv({title:'',time:'09:00',color:'#ff6b9d'});setModal(true)},className:`min-h-32 bg-white rounded-b-lg p-1 cursor-pointer active:scale-[0.98] ${today?'ring-3 ring-pink-400':''}`},
+              today&&e('div',{className:'text-xs text-pink-500 font-bold text-center'},'TODAY'),
+              e('div',{className:'space-y-0.5'},
+                evs.slice(0,5).map(ev=>e('div',{key:ev.id,className:'p-1 rounded text-white text-xs flex justify-between items-center',style:{backgroundColor:ev.color},onClick:x=>x.stopPropagation()},
+                  e('div',{className:'truncate flex-1'},e('span',{className:'font-medium'},ev.title),' ',e('span',{className:'opacity-80'},ev.time)),
+                  e('button',{onClick:x=>{x.stopPropagation();delEv(dk,ev.id,ev.googleId)},className:'text-white text-sm px-1 ml-1'},'×')
+                )),
+                evs.length>5&&e('div',{className:'text-xs text-gray-500 text-center'},`+${evs.length-5} more`)
+              ),
+              e('div',{className:'text-center text-gray-300 text-lg'},'+')
+            )
+          })
+        ),
+        e('div',{className:'mt-3 grid grid-cols-1 md:grid-cols-2 gap-3'},
+          e('div',{className:'bg-white rounded-xl p-4 shadow-sm border-l-4 border-pink-400'},
+            e('div',{className:'flex items-center gap-2 mb-2'},e('span',{className:'text-2xl'},'✨'),e('h3',{className:'font-bold text-gray-800'},'Quote of the Day')),
+            e('p',{className:'text-gray-700 italic text-lg'},`"${quote.text}"`),
+            e('p',{className:'text-gray-500 text-sm mt-1'},`— ${quote.author}`)
+          ),
+          e('div',{className:'bg-white rounded-xl p-4 shadow-sm border-l-4 border-red-500'},
+            e('div',{className:'flex items-center gap-2 mb-2'},e('span',{className:'text-2xl'},'🚨'),e('h3',{className:'font-bold text-gray-800'},'Urgent This Week')),
+            urgent.length===0?e('p',{className:'text-gray-500 italic'},'No urgent items - great job! 🎉'):
+              e('div',{className:'space-y-2 max-h-24 overflow-y-auto'},urgent.map((ev,i)=>e('div',{key:i,className:'flex items-center gap-2 p-2 bg-red-50 rounded-lg border border-red-200'},
+                e('div',{className:'w-2 h-2 bg-red-500 rounded-full animate-pulse'}),
+                e('div',{className:'flex-1'},e('span',{className:'font-medium text-red-800'},ev.title),e('span',{className:'text-red-600 text-sm ml-2'},`${ev.dayName} @ ${ev.time}`))
+              )))
+          )
+        ),
+        e('div',{className:'mt-3 flex justify-center flex-wrap gap-3'},colors.map(c=>e('div',{key:c,className:'flex items-center gap-1 text-sm text-gray-600'},e('div',{className:'w-4 h-4 rounded-full',style:{backgroundColor:c}}),e('span',null,colorLabels[c].icon,' ',colorLabels[c].name)))),
+        modal&&e('div',{className:'fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center pt-4 p-4 z-40',onClick:()=>{setModal(false);setKb(false);setTimePick(false)}},
+          e('div',{className:'bg-white rounded-2xl p-5 w-full max-w-md',onClick:x=>x.stopPropagation()},
+            e('h2',{className:'text-xl font-bold mb-3 text-gray-800'},`Add Event - ${selDay?.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}`),
+            e('div',{onClick:()=>{setKb(true);setTimePick(false)},className:'w-full p-3 text-lg border-2 border-gray-200 rounded-xl mb-3 cursor-text min-h-14 flex items-center'},newEv.title||e('span',{className:'text-gray-400'},'Tap to enter event title...')),
+            e('div',{onClick:()=>{setTimePick(true);setKb(false)},className:'w-full p-3 text-lg border-2 border-gray-200 rounded-xl mb-3 cursor-pointer'},`🕐 ${newEv.time}`),
+            e('div',{className:'mb-3'},e('p',{className:'text-sm text-gray-500 mb-2 text-center'},'Select Category:'),
+              e('div',{className:'flex gap-2 justify-center flex-wrap'},colors.map(c=>e('button',{key:c,onClick:()=>setNewEv({...newEv,color:c}),className:`flex flex-col items-center p-2 rounded-lg transition-all ${newEv.color===c?'scale-110 ring-2 ring-gray-400 bg-gray-100':''}`},
+                e('div',{className:'w-8 h-8 rounded-full mb-1',style:{backgroundColor:c}}),e('span',{className:'text-xs text-gray-600'},colorLabels[c].name)
+              )))
+            ),
+            e('div',{className:'flex gap-2'},
+              e('button',{onClick:()=>{setModal(false);setKb(false);setTimePick(false)},className:'flex-1 py-3 bg-gray-200 text-gray-800 rounded-xl text-lg active:scale-95'},'Cancel'),
+              e('button',{onClick:addEv,disabled:loading||!connected,className:'flex-1 py-3 bg-pink-500 text-white rounded-xl text-lg active:scale-95 disabled:opacity-50'},loading?'Saving...':'Add')
+            )
+          )
+        ),
+        settings&&e('div',{className:'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40',onClick:()=>{setSettings(false);setWifiKb(false)}},
+          e('div',{className:'bg-white rounded-2xl p-5 w-full max-w-md',onClick:x=>x.stopPropagation()},
+            e('h2',{className:'text-xl font-bold mb-4 text-gray-800'},'⚙️ Settings'),
+            e('label',{className:'block text-sm text-gray-600 mb-1'},'WiFi Network (SSID)'),
+            e('div',{onClick:()=>{setWifiField('ssid');setWifiKb(true)},className:'w-full p-3 text-lg border-2 border-gray-200 rounded-xl mb-3 cursor-text min-h-12 flex items-center'},ssid||e('span',{className:'text-gray-400'},'Tap to enter SSID...')),
+            e('label',{className:'block text-sm text-gray-600 mb-1'},'WiFi Password'),
+            e('div',{onClick:()=>{setWifiField('password');setWifiKb(true)},className:'w-full p-3 text-lg border-2 border-gray-200 rounded-xl mb-3 cursor-text min-h-12 flex items-center'},wifiPw?'•'.repeat(wifiPw.length):e('span',{className:'text-gray-400'},'Tap to enter password...')),
+            wifiStatus&&e('p',{className:'text-center text-sm mb-3 text-gray-600'},wifiStatus),
+            e('div',{className:'flex gap-2 mb-3'},
+              e('button',{onClick:saveWifi,className:'flex-1 py-3 bg-blue-500 text-white rounded-xl active:scale-95'},'Save'),
+              e('button',{onClick:connectWifi,className:'flex-1 py-3 bg-green-500 text-white rounded-xl active:scale-95'},'Connect')
+            ),
+            e('button',{onClick:()=>{setSettings(false);setWifiKb(false)},className:'w-full py-3 bg-gray-200 text-gray-800 rounded-xl active:scale-95'},'Close')
+          )
+        ),
+        kb&&e(Keyboard,{onKey:k=>setNewEv({...newEv,title:newEv.title+k}),onBack:()=>setNewEv({...newEv,title:newEv.title.slice(0,-1)}),onEnter:()=>setKb(false),onClose:()=>setKb(false)}),
+        timePick&&e(TimePicker,{value:newEv.time,onChange:t=>setNewEv({...newEv,time:t}),onClose:()=>setTimePick(false)}),
+        wifiKb&&e(Keyboard,{onKey:wifiKey,onBack:wifiBack,onEnter:()=>setWifiKb(false),onClose:()=>setWifiKb(false)})
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+  </script>
+</body>
+</html>
