@@ -173,7 +173,7 @@
         e('div',{className:'text-center mb-2'},
           e('h1',{onClick:handleTap,className:'text-3xl font-serif italic text-gray-800 mb-1 cursor-pointer'},'Family Calendar'),
           e('p',{className:'text-base text-gray-600'},monthYear),
-          e('p',{className:'text-sm text-gray-500'},time.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})),
+          e('p',{className:'text-sm text-gray-500'},time.toLocaleTimeString('en-US',{timeZone: 'America/New_York',hour:'2-digit',minute:'2-digit'})),
           e('div',{className:'mt-2 flex justify-center items-center gap-2'},
             e('span',{className:`text-xs px-3 py-1 rounded-full ${connected?'text-green-600 bg-green-100':'text-orange-600 bg-orange-100'}`},(connected?'✓ ':' ⚠️ ')+status),
             e('button',{onClick:fetchEv,disabled:!connected,className:'text-xs bg-blue-500 text-white px-3 py-1 rounded-full active:scale-95 disabled:opacity-50'},'🔄 Sync')
