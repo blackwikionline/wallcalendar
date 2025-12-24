@@ -41,7 +41,15 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div id="loader" style="background:#fdf2f4;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;">
+      <h1 style="font-family:Georgia,serif;font-style:italic;color:#333;font-size:2.5rem;margin:0;">Family Calendar</h1>
+      <p style="color:#666;margin-top:1rem;">Loading...</p>
+      <div style="margin-top:1rem;width:40px;height:40px;border:4px solid #ff6b9d;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
+
+  </div>
   <script type="text/babel">
     const { useState, useEffect } = React;
 

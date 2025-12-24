@@ -185,7 +185,6 @@
           e('button',{onClick:()=>navWeek(1),className:'px-4 py-2 bg-gray-800 text-white rounded-lg active:scale-95'},'Next →'),
           e('button',{onClick:toggleFs,className:'px-3 py-2 bg-gray-600 text-white rounded-lg active:scale-95'},'⛶')
         ),
-        loading&&e('div',{className:'flex justify-center mb-2'},e('div',{className:'bg-blue-100 text-blue-800 px-4 py-1 rounded-full text-sm animate-pulse'},'Syncing...')),
         e('div',{className:'grid grid-cols-7 gap-1'},
           days.map((d,i)=>e('div',{key:d,className:`py-1.5 text-center font-bold text-white text-sm ${i>=5?'bg-pink-400':'bg-gray-800'} rounded-t-lg`},d,e('div',{className:'text-xs font-normal opacity-80'},week[i].getDate()))),
           week.map((d,i)=>{const dk=fmtKey(d);const evs=events[dk]||[];const today=isToday(d);
@@ -202,6 +201,7 @@
             )
           })
         ),
+        loading&&e('div',{className:'flex justify-center mb-2'},e('div',{className:'bg-blue-100 text-blue-800 px-4 py-1 rounded-full text-sm animate-pulse'},'Syncing...')),
         e('div',{className:'mt-3 grid grid-cols-1 md:grid-cols-2 gap-3'},
           e('div',{className:'bg-white rounded-xl p-4 shadow-sm border-l-4 border-pink-400'},
             e('div',{className:'flex items-center gap-2 mb-2'},e('span',{className:'text-2xl'},'✨'),e('h3',{className:'font-bold text-gray-800'},'Quote of the Day')),

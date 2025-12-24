@@ -105,11 +105,11 @@ app.post('/api/wifi', async (req, res) => {
   const fs = require('fs').promises;
   const { exec } = require('child_process');
 
-  exec(`sudo nmcli dev wifi`, (error, stdout, stderr) => {
-    if (error) {
-      res.status(500).json({ error: stderr || error.message });
-    }
-  });
+  // exec(`sudo nmcli dev wifi`, (error, stdout, stderr) => {
+  //   if (error) {
+  //     res.status(500).json({ error: stderr || error.message });
+  //   }
+  // });
 
   try {
     // Save to file
@@ -131,7 +131,8 @@ app.post('/api/wifi/connect', async (req, res) => {
   const { exec } = require('child_process');
   const { ssid, password } = req.body;
 
-  exec(`sudo nmcli dev wifi connect "${ssid}" password "${password}"`, (error, stdout, stderr) => {
+  // exec(`sudo nmcli dev wifi connect "${ssid}" password "${password}"`, (error, stdout, stderr) => {
+  exec(`sudo ./set_wifi.sh "${ssid}" "${password}" wlan0`, (error, stdout, stderr) => {
     if (error) {
       res.status(500).json({ error: stderr || error.message });
     } else {

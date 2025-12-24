@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loading...</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #fce4ec 0%, #f8bbd9 100%);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    
+    .splash-container {
+      text-align: center;
+    }
+    
+    .splash-image {
+      max-width: 80vw;
+      max-height: 70vh;
+      object-fit: contain;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+    
+    .loading-text {
+      margin-top: 2rem;
+      color: #ad1457;
+      font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f8bbd9;
+      border-top-color: #ad1457;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash-container">
+    <img src="splash.png" alt="Family Calendar" class="splash-image">
+    <div class="loading-text">
+      <div class="spinner"></div>
+      <span>Starting up...</span>
+    </div>
+  </div>
+
+  <script>
+    const SERVER_URL = 'http://localhost:3000';
+    const CHECK_INTERVAL = 1000; // Check every second
+    
+    async function checkServer() {
+      try {
+        const response = await fetch(SERVER_URL, { 
+          method: 'HEAD',
+          mode: 'no-cors'
+        });
+        // If we get here without error, server is responding
+        window.location.href = SERVER_URL;
+      } catch (error) {
+        // Server not ready yet, try again
+        setTimeout(checkServer, CHECK_INTERVAL);
+      }
+    }
+    
+    // Start checking when page loads
+    checkServer();
+  </script>
+</body>
+</html>
